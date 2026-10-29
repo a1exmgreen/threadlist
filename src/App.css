@@ -355,7 +355,7 @@ h1 {
 
 .filters {
   display: grid;
-  grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(125px, 1fr));
+  grid-template-columns: minmax(180px, 2fr) repeat(4, minmax(125px, 1fr));
   gap: 10px;
   margin-bottom: 32px;
 }

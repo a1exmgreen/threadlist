@@ -145,6 +145,7 @@ function App() {
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [brandFilter, setBrandFilter] = useState("All");
   const [colourFilter, setColourFilter] = useState("All");
+  const [sortOrder, setSortOrder] = useState("recent");
 
   const [formData, setFormData] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
@@ -179,10 +180,11 @@ function App() {
     [items]
   );
 
+  
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return items.filter((item) => {
+    const filtered = items.filter((item) => {
       const searchableText = [
         item.name,
         item.brand,
@@ -191,7 +193,10 @@ function App() {
         item.simpleColour,
         item.size,
         item.stock,
-      ].filter(Boolean).join(" ").toLowerCase();
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
       return (
         searchableText.includes(query) &&
@@ -200,7 +205,56 @@ function App() {
         (colourFilter === "All" || item.simpleColour === colourFilter)
       );
     });
-  }, [items, search, categoryFilter, brandFilter, colourFilter]);
+
+    return filtered.sort((a, b) => {
+      switch (sortOrder) {
+        case "oldest":
+          return Number(a.id) - Number(b.id);
+
+        case "price-asc": {
+          const priceA = Number(a.price);
+          const priceB = Number(b.price);
+          const hasPriceA = a.price !== "" && a.price != null && Number.isFinite(priceA);
+          const hasPriceB = b.price !== "" && b.price != null && Number.isFinite(priceB);
+
+          if (!hasPriceA && !hasPriceB) return 0;
+          if (!hasPriceA) return 1;
+          if (!hasPriceB) return -1;
+          return priceA - priceB;
+        }
+
+        case "price-desc": {
+          const priceA = Number(a.price);
+          const priceB = Number(b.price);
+          const hasPriceA = a.price !== "" && a.price != null && Number.isFinite(priceA);
+          const hasPriceB = b.price !== "" && b.price != null && Number.isFinite(priceB);
+
+          if (!hasPriceA && !hasPriceB) return 0;
+          if (!hasPriceA) return 1;
+          if (!hasPriceB) return -1;
+          return priceB - priceA;
+        }
+
+        case "name-asc":
+          return (a.name || "").localeCompare(b.name || "");
+
+        case "name-desc":
+          return (b.name || "").localeCompare(a.name || "");
+
+        case "recent":
+        default:
+          return Number(b.id) - Number(a.id);
+      }
+    });
+  }, [
+    items,
+    search,
+    categoryFilter,
+    brandFilter,
+    colourFilter,
+    sortOrder,
+  ]);
+
 
   const totalValue = items.reduce(
     (total, item) => total + (Number(item.price) || 0),
@@ -492,6 +546,20 @@ function App() {
                   <option key={colour} value={colour}>{colour}</option>
                 ))}
               </select>
+              
+              <select
+                value={sortOrder}
+                onChange={(event) => setSortOrder(event.target.value)}
+                aria-label="Sort wishlist"
+              >
+                <option value="recent">Recently added</option>
+                <option value="oldest">Oldest added</option>
+                <option value="price-asc">Price: low to high</option>
+                <option value="price-desc">Price: high to low</option>
+                <option value="name-asc">Name: A–Z</option>
+                <option value="name-desc">Name: Z–A</option>
+              </select>
+
             </div>
 
             <div className="results-heading">
@@ -549,31 +617,6 @@ function App() {
                       <p className="product-brand">{item.brand}</p>
                       <h3>{item.name}</h3>
                       <p className="product-price">{formatPrice(item.price)}</p>
-
-                      <div className="product-tags">
-                        {item.category && (
-                          <span className="product-tag">{item.category}</span>
-                        )}
-
-                        {item.size && (
-                          <span className="product-tag">{item.size}</span>
-                        )}
-
-                        {/* Show the simple colour category, not retailer colour */}
-                        {item.simpleColour && (
-                          <span className="product-tag">{item.simpleColour}</span>
-                        )}
-
-                        {item.stock && (
-                          <span
-                            className={`product-tag ${
-                              item.stock === "In stock" ? "product-tag-stock" : ""
-                            }`}
-                          >
-                            {item.stock}
-                          </span>
-                        )}
-                      </div>
 
                       <div className="product-card-actions">
                         <button
