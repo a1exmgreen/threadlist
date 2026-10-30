@@ -9,9 +9,10 @@ const simpleColours = [
 ];
 
 const categories = [
-  "Tops", "Trousers", "Jeans", "Dresses", "Skirts",
-  "Jackets & Coats", "Shoes", "Bags", "Accessories",
-  "Knitwear", "Other",
+  "Tops", "T-Shirts", "Shirts", "Polo", "Knitwear", "Hoodies",
+  "Trousers", "Jeans", "Shorts", "Jackets", "Coats", "Shoes",
+  "Trainers", "Boots", "Socks", "Hats", "Nightwear", "Bags",
+  "Accessories", "Other",
 ];
 
 const stockOptions = ["In stock", "Low stock", "Out of stock", "Unknown"];
@@ -96,6 +97,7 @@ function loadItems() {
           ...emptyForm,
           ...item,
           simpleColour: item.simpleColour || "",
+          isFavourite: item.isFavourite || false,
         }));
       }
     }
@@ -146,6 +148,7 @@ function App() {
   const [brandFilter, setBrandFilter] = useState("All");
   const [colourFilter, setColourFilter] = useState("All");
   const [sortOrder, setSortOrder] = useState("recent");
+  const [showAllItems, setShowAllItems] = useState(false);
 
   const [formData, setFormData] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
@@ -157,6 +160,21 @@ function App() {
 
   const [notice, setNotice] = useState("");
 
+  // Get favourite items
+  const favouriteItems = useMemo(() => {
+    const favourites = items.filter((item) => item.isFavourite);
+  
+    // Shuffle the favourites
+    for (let i = favourites.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [favourites[i], favourites[j]] = [favourites[j], favourites[i]];
+    }
+  
+    // Show up to three
+    return favourites.slice(0, 3);
+  }, [items]);
+
+  // Save wishlist items
   useEffect(() => {
     try {
       localStorage.setItem("threadlist-items", JSON.stringify(items));
@@ -166,6 +184,7 @@ function App() {
     }
   }, [items]);
 
+  // Save outfit inspiration
   useEffect(() => {
     try {
       localStorage.setItem("threadlist-inspirations", JSON.stringify(inspirations));
@@ -175,12 +194,13 @@ function App() {
     }
   }, [inspirations]);
 
+  // Get unique brands
   const brands = useMemo(
     () => [...new Set(items.map((item) => item.brand).filter(Boolean))].sort(),
     [items]
   );
 
-  
+  // Filter and sort wishlist items
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
 
@@ -207,33 +227,30 @@ function App() {
     });
 
     return filtered.sort((a, b) => {
+      const priceA = Number(a.price);
+      const priceB = Number(b.price);
+
+      const hasPriceA =
+        a.price !== "" && a.price != null && Number.isFinite(priceA);
+
+      const hasPriceB =
+        b.price !== "" && b.price != null && Number.isFinite(priceB);
+
       switch (sortOrder) {
         case "oldest":
           return Number(a.id) - Number(b.id);
 
-        case "price-asc": {
-          const priceA = Number(a.price);
-          const priceB = Number(b.price);
-          const hasPriceA = a.price !== "" && a.price != null && Number.isFinite(priceA);
-          const hasPriceB = b.price !== "" && b.price != null && Number.isFinite(priceB);
-
+        case "price-asc":
           if (!hasPriceA && !hasPriceB) return 0;
           if (!hasPriceA) return 1;
           if (!hasPriceB) return -1;
           return priceA - priceB;
-        }
 
-        case "price-desc": {
-          const priceA = Number(a.price);
-          const priceB = Number(b.price);
-          const hasPriceA = a.price !== "" && a.price != null && Number.isFinite(priceA);
-          const hasPriceB = b.price !== "" && b.price != null && Number.isFinite(priceB);
-
+        case "price-desc":
           if (!hasPriceA && !hasPriceB) return 0;
           if (!hasPriceA) return 1;
           if (!hasPriceB) return -1;
           return priceB - priceA;
-        }
 
         case "name-asc":
           return (a.name || "").localeCompare(b.name || "");
@@ -255,7 +272,17 @@ function App() {
     sortOrder,
   ]);
 
+  // Show six items initially, or all items when expanded
+  const displayedItems = showAllItems
+    ? filteredItems
+    : filteredItems.slice(0, 6);
 
+  // Collapse the list when filters or sorting change
+  useEffect(() => {
+    setShowAllItems(false);
+  }, [search, categoryFilter, brandFilter, colourFilter, sortOrder]);
+
+  // Calculate total wishlist value
   const totalValue = items.reduce(
     (total, item) => total + (Number(item.price) || 0),
     0
@@ -310,7 +337,11 @@ function App() {
 
     if (editingId !== null) {
       setItems((current) =>
-        current.map((item) => item.id === editingId ? product : item)
+        current.map((item) =>
+          item.id === editingId
+            ? { ...product, isFavourite: item.isFavourite || false }
+            : item
+        )
       );
       setNotice("Product updated.");
     } else {
@@ -336,6 +367,17 @@ function App() {
     }
 
     setNotice("Product removed.");
+  }
+
+  // Add or remove a product from favourites
+  function toggleFavourite(id) {
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id
+          ? { ...item, isFavourite: !item.isFavourite }
+          : item
+      )
+    );
   }
 
   function openProductDetails(item) {
@@ -495,16 +537,94 @@ function App() {
                 <span className="stat-label">Items saved</span>
                 <strong>{items.length}</strong>
               </div>
+
               <div className="stat-card">
                 <span className="stat-label">Total wishlist value</span>
                 <strong>{formatPrice(totalValue)}</strong>
               </div>
+
               <div className="stat-card">
                 <span className="stat-label">Brands</span>
                 <strong>{brands.length}</strong>
               </div>
             </div>
 
+            {/* FAVOURITES SECTION */}
+            <div className="favourites-section">
+              <div className="results-heading">
+                <div>
+                  <h2>Favourites</h2>
+                  <p className="page-description">
+                    Your absolute must-haves.
+                  </p>
+                </div>
+
+                <span>
+                  {favouriteItems.length}{" "}
+                  {favouriteItems.length === 1 ? "favourite" : "favourites"}
+                </span>
+              </div>
+
+              {favouriteItems.length === 0 ? (
+                <div className="favourites-empty">
+                  <span className="empty-icon">☆</span>
+                  <p>
+                    No favourites yet. Select the star on any wishlist item
+                    to add it here.
+                  </p>
+                </div>
+              ) : (
+                <div className="favourites-grid">
+                  {favouriteItems.map((item) => (
+                    <article
+                      className="favourite-card"
+                      key={item.id}
+                      onClick={() => openProductDetails(item)}
+                    >
+                      <div className="favourite-image-wrap">
+                        {item.image ? (
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            onError={(event) => {
+                              event.currentTarget.style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div className="image-placeholder">
+                            <span>♡</span>
+                            <small>No image added</small>
+                          </div>
+                        )}
+
+                        <button
+                          type="button"
+                          className="favourite-star active"
+                          title="Remove from favourites"
+                          aria-label={`Remove ${item.name} from favourites`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleFavourite(item.id);
+                          }}
+                        >
+                          ★
+                        </button>
+                      </div>
+
+                      <div className="favourite-card-content">
+                        <p className="product-brand">{item.brand}</p>
+                        <h3>{item.name}</h3>
+                        <p className="product-price">
+                          {formatPrice(item.price)}
+                        </p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* WISHLIST FILTERS */}
             <div className="filters">
               <input
                 type="search"
@@ -521,7 +641,9 @@ function App() {
               >
                 <option value="All">All categories</option>
                 {categories.map((category) => (
-                  <option key={category} value={category}>{category}</option>
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
                 ))}
               </select>
 
@@ -532,7 +654,9 @@ function App() {
               >
                 <option value="All">All brands</option>
                 {brands.map((brand) => (
-                  <option key={brand} value={brand}>{brand}</option>
+                  <option key={brand} value={brand}>
+                    {brand}
+                  </option>
                 ))}
               </select>
 
@@ -543,10 +667,12 @@ function App() {
               >
                 <option value="All">All colours</option>
                 {simpleColours.map((colour) => (
-                  <option key={colour} value={colour}>{colour}</option>
+                  <option key={colour} value={colour}>
+                    {colour}
+                  </option>
                 ))}
               </select>
-              
+
               <select
                 value={sortOrder}
                 onChange={(event) => setSortOrder(event.target.value)}
@@ -559,101 +685,156 @@ function App() {
                 <option value="name-asc">Name: A–Z</option>
                 <option value="name-desc">Name: Z–A</option>
               </select>
-
             </div>
 
             <div className="results-heading">
               <h2>Your saved pieces</h2>
-              <span>{filteredItems.length} {filteredItems.length === 1 ? "item" : "items"}</span>
+              <span>
+                {filteredItems.length}{" "}
+                {filteredItems.length === 1 ? "item" : "items"}
+              </span>
             </div>
 
             {filteredItems.length === 0 ? (
               <div className="empty-state">
                 <span className="empty-icon">♡</span>
                 <h3>No items found</h3>
-                <p>Try changing your filters, or add a new item to your wishlist.</p>
-                <button className="primary-button" onClick={openAddForm}>Add an item</button>
+                <p>
+                  Try changing your filters, or add a new item to your wishlist.
+                </p>
+                <button className="primary-button" onClick={openAddForm}>
+                  Add an item
+                </button>
               </div>
             ) : (
-              <div className="product-grid">
-                {filteredItems.map((item) => (
-                  <article
-                    className="product-card"
-                    key={item.id}
-                    onClick={() => openProductDetails(item)}
-                  >
-                    <div className="product-image-wrap">
-                      {item.image ? (
-                        <img
-                          className="product-image"
-                          src={item.image}
-                          alt={item.name}
-                          onError={(event) => {
-                            event.currentTarget.style.display = "none";
-                          }}
-                        />
-                      ) : (
-                        <div className="image-placeholder">
-                          <span>♡</span>
-                          <small>No image added</small>
-                        </div>
-                      )}
+              <>
+                <div className="product-grid">
+                  {displayedItems.map((item) => (
+                    <article
+                      className="product-card"
+                      key={item.id}
+                      onClick={() => openProductDetails(item)}
+                    >
+                      <div className="product-image-wrap">
+                        {item.image ? (
+                          <img
+                            className="product-image"
+                            src={item.image}
+                            alt={item.name}
+                            onError={(event) => {
+                              event.currentTarget.style.display = "none";
+                            }}
+                          />
+                        ) : (
+                          <div className="image-placeholder">
+                            <span>♡</span>
+                            <small>No image added</small>
+                          </div>
+                        )}
 
-                      <button
-                        className="card-delete"
-                        type="button"
-                        title="Remove item"
-                        aria-label={`Remove ${item.name}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          deleteProduct(item.id);
-                        }}
-                      >
-                        ×
-                      </button>
-                    </div>
-
-                    <div className="product-card-content">
-                      <p className="product-brand">{item.brand}</p>
-                      <h3>{item.name}</h3>
-                      <p className="product-price">{formatPrice(item.price)}</p>
-
-                      <div className="product-card-actions">
                         <button
                           type="button"
-                          className="view-item-button"
+                          className={`favourite-star ${
+                            item.isFavourite ? "active" : ""
+                          }`}
+                          title={
+                            item.isFavourite
+                              ? "Remove from favourites"
+                              : "Add to favourites"
+                          }
+                          aria-label={
+                            item.isFavourite
+                              ? `Remove ${item.name} from favourites`
+                              : `Add ${item.name} to favourites`
+                          }
+                          aria-pressed={Boolean(item.isFavourite)}
                           onClick={(event) => {
                             event.stopPropagation();
-                            openProductDetails(item);
+                            toggleFavourite(item.id);
                           }}
                         >
-                          View Item
+                          {item.isFavourite ? "★" : "☆"}
                         </button>
 
-                        {item.link ? (
-                          <a
-                            className="retailer-button"
-                            href={item.link}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            Retailer ↗
-                          </a>
-                        ) : (
-                          <button type="button" className="retailer-button" disabled>
-                            Retailer
-                          </button>
-                        )}
+                        <button
+                          className="card-delete"
+                          type="button"
+                          title="Remove item"
+                          aria-label={`Remove ${item.name}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            deleteProduct(item.id);
+                          }}
+                        >
+                          ×
+                        </button>
                       </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
+
+                      <div className="product-card-content">
+                        <p className="product-brand">{item.brand}</p>
+                        <h3>{item.name}</h3>
+                        <p className="product-price">
+                          {formatPrice(item.price)}
+                        </p>
+
+                        <div className="product-card-actions">
+                          <button
+                            type="button"
+                            className="view-item-button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openProductDetails(item);
+                            }}
+                          >
+                            View Item
+                          </button>
+
+                          {item.link ? (
+                            <a
+                              className="retailer-button"
+                              href={item.link}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              Retailer ↗
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              className="retailer-button"
+                              disabled
+                            >
+                              Retailer
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+
+                {filteredItems.length > 6 && (
+                  <div className="view-all-container">
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() =>
+                        setShowAllItems((current) => !current)
+                      }
+                    >
+                      {showAllItems
+                        ? "Show less"
+                        : `View all ${filteredItems.length} items`}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </section>
         )}
 
+        {/* ADD / EDIT PRODUCT */}
         {page === "add" && (
           <section className="page-section form-page">
             <div className="page-header">
@@ -670,66 +851,152 @@ function App() {
               <div className="form-grid">
                 <div className="form-group full-width">
                   <label htmlFor="name">Product name *</label>
-                  <input id="name" name="name" value={formData.name} onChange={handleInputChange} placeholder="e.g. Relaxed fit cotton shirt" required />
+                  <input
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="e.g. Relaxed fit cotton shirt"
+                    required
+                  />
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="brand">Brand *</label>
-                  <input id="brand" name="brand" value={formData.brand} onChange={handleInputChange} placeholder="e.g. M&S" required />
+                  <input
+                    id="brand"
+                    name="brand"
+                    value={formData.brand}
+                    onChange={handleInputChange}
+                    placeholder="e.g. M&S"
+                    required
+                  />
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="category">Category</label>
-                  <select id="category" name="category" value={formData.category} onChange={handleInputChange}>
-                    {categories.map((category) => <option key={category} value={category}>{category}</option>)}
+                  <select
+                    id="category"
+                    name="category"
+                    value={formData.category}
+                    onChange={handleInputChange}
+                  >
+                    {categories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="colour">Retailer colour name</label>
-                  <input id="colour" name="colour" value={formData.colour} onChange={handleInputChange} placeholder="e.g. Henna, Dark Olive, Stone" />
-                  <small>Keep the original colour name used by the retailer.</small>
+                  <input
+                    id="colour"
+                    name="colour"
+                    value={formData.colour}
+                    onChange={handleInputChange}
+                    placeholder="e.g. Henna, Dark Olive, Stone"
+                  />
+                  <small>
+                    Keep the original colour name used by the retailer.
+                  </small>
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="simpleColour">Colour category</label>
-                  <select id="simpleColour" name="simpleColour" value={formData.simpleColour} onChange={handleInputChange}>
+                  <select
+                    id="simpleColour"
+                    name="simpleColour"
+                    value={formData.simpleColour}
+                    onChange={handleInputChange}
+                  >
                     <option value="">Choose a colour</option>
-                    {simpleColours.map((colour) => <option key={colour} value={colour}>{colour}</option>)}
+                    {simpleColours.map((colour) => (
+                      <option key={colour} value={colour}>
+                        {colour}
+                      </option>
+                    ))}
                   </select>
-                  <small>Choose a simple colour for filtering and product tags.</small>
+                  <small>
+                    Choose a simple colour for filtering and product tags.
+                  </small>
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="price">Price (£)</label>
-                  <input id="price" name="price" type="number" min="0" step="0.01" value={formData.price} onChange={handleInputChange} placeholder="e.g. 29.99" />
+                  <input
+                    id="price"
+                    name="price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={handleInputChange}
+                    placeholder="e.g. 29.99"
+                  />
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="size">Size</label>
-                  <input id="size" name="size" value={formData.size} onChange={handleInputChange} placeholder="e.g. M, 32, UK 10" />
+                  <input
+                    id="size"
+                    name="size"
+                    value={formData.size}
+                    onChange={handleInputChange}
+                    placeholder="e.g. M, 32, UK 10"
+                  />
                 </div>
 
                 <div className="form-group">
                   <label htmlFor="stock">Stock status</label>
-                  <select id="stock" name="stock" value={formData.stock} onChange={handleInputChange}>
-                    {stockOptions.map((stock) => <option key={stock} value={stock}>{stock}</option>)}
+                  <select
+                    id="stock"
+                    name="stock"
+                    value={formData.stock}
+                    onChange={handleInputChange}
+                  >
+                    {stockOptions.map((stock) => (
+                      <option key={stock} value={stock}>
+                        {stock}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
                 <div className="form-group full-width">
                   <label htmlFor="image">Product image URL</label>
-                  <input id="image" name="image" type="url" value={formData.image} onChange={handleInputChange} placeholder="https://..." />
+                  <input
+                    id="image"
+                    name="image"
+                    type="url"
+                    value={formData.image}
+                    onChange={handleInputChange}
+                    placeholder="https://..."
+                  />
                 </div>
 
                 <div className="form-group full-width">
                   <label htmlFor="link">Retailer product URL</label>
-                  <input id="link" name="link" type="url" value={formData.link} onChange={handleInputChange} placeholder="https://..." />
+                  <input
+                    id="link"
+                    name="link"
+                    type="url"
+                    value={formData.link}
+                    onChange={handleInputChange}
+                    placeholder="https://..."
+                  />
                 </div>
               </div>
 
               <div className="form-actions">
-                <button className="secondary-button" type="button" onClick={() => navigateTo("wishlist")}>Cancel</button>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => navigateTo("wishlist")}
+                >
+                  Cancel
+                </button>
                 <button className="primary-button" type="submit">
                   {editingId !== null ? "Save changes" : "Add to wishlist"}
                 </button>
@@ -738,16 +1005,24 @@ function App() {
           </section>
         )}
 
+        {/* PRODUCT DETAILS */}
         {page === "details" && selectedItem && (
           <section className="page-section">
-            <button className="back-button" onClick={() => navigateTo("wishlist")}>
+            <button
+              className="back-button"
+              onClick={() => navigateTo("wishlist")}
+            >
               ← Back to wishlist
             </button>
 
             <div className="detail-layout">
               <div className="detail-image-wrap">
                 {selectedItem.image ? (
-                  <img src={selectedItem.image} alt={selectedItem.name} className="detail-image" />
+                  <img
+                    src={selectedItem.image}
+                    alt={selectedItem.name}
+                    className="detail-image"
+                  />
                 ) : (
                   <div className="image-placeholder">
                     <span>♡</span>
@@ -759,30 +1034,81 @@ function App() {
               <div className="detail-content">
                 <p className="eyebrow">{selectedItem.brand}</p>
                 <h1>{selectedItem.name}</h1>
-                <p className="detail-price">{formatPrice(selectedItem.price)}</p>
+                <p className="detail-price">
+                  {formatPrice(selectedItem.price)}
+                </p>
 
                 <div className="detail-fields">
-                  <div><span>Category</span><strong>{selectedItem.category || "Not specified"}</strong></div>
-                  <div><span>Retailer colour</span><strong>{selectedItem.colour || "Not specified"}</strong></div>
-                  <div><span>Colour category</span><strong>{selectedItem.simpleColour || "Not specified"}</strong></div>
-                  <div><span>Size</span><strong>{selectedItem.size || "Not specified"}</strong></div>
-                  <div><span>Stock status</span><strong>{selectedItem.stock || "Unknown"}</strong></div>
+                  <div>
+                    <span>Category</span>
+                    <strong>{selectedItem.category || "Not specified"}</strong>
+                  </div>
+                  <div>
+                    <span>Retailer colour</span>
+                    <strong>{selectedItem.colour || "Not specified"}</strong>
+                  </div>
+                  <div>
+                    <span>Colour category</span>
+                    <strong>{selectedItem.simpleColour || "Not specified"}</strong>
+                  </div>
+                  <div>
+                    <span>Size</span>
+                    <strong>{selectedItem.size || "Not specified"}</strong>
+                  </div>
+                  <div>
+                    <span>Stock status</span>
+                    <strong>{selectedItem.stock || "Unknown"}</strong>
+                  </div>
                 </div>
 
                 <div className="detail-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => {
+                      toggleFavourite(selectedItem.id);
+                      setSelectedItem((current) => ({
+                        ...current,
+                        isFavourite: !current.isFavourite,
+                      }));
+                    }}
+                  >
+                    {selectedItem.isFavourite
+                      ? "★ Remove from favourites"
+                      : "☆ Add to favourites"}
+                  </button>
+
                   {selectedItem.link && (
-                    <a className="primary-button" href={selectedItem.link} target="_blank" rel="noreferrer">
+                    <a
+                      className="primary-button"
+                      href={selectedItem.link}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       View at retailer ↗
                     </a>
                   )}
-                  <button className="secondary-button" onClick={() => openEditForm(selectedItem)}>Edit item</button>
-                  <button className="danger-button" onClick={() => deleteProduct(selectedItem.id)}>Remove item</button>
+
+                  <button
+                    className="secondary-button"
+                    onClick={() => openEditForm(selectedItem)}
+                  >
+                    Edit item
+                  </button>
+
+                  <button
+                    className="danger-button"
+                    onClick={() => deleteProduct(selectedItem.id)}
+                  >
+                    Remove item
+                  </button>
                 </div>
               </div>
             </div>
           </section>
         )}
 
+        {/* OUTFIT INSPIRATION */}
         {page === "inspiration" && (
           <section className="page-section">
             <div className="page-header">
@@ -800,34 +1126,54 @@ function App() {
 
               <div className="form-group">
                 <label htmlFor="inspirationTitle">Title (optional)</label>
-                <input id="inspirationTitle" value={inspirationTitle} onChange={(event) => setInspirationTitle(event.target.value)} placeholder="e.g. Autumn everyday outfit" />
+                <input
+                  id="inspirationTitle"
+                  value={inspirationTitle}
+                  onChange={(event) => setInspirationTitle(event.target.value)}
+                  placeholder="e.g. Autumn everyday outfit"
+                />
               </div>
 
               <div className="form-group">
                 <label htmlFor="inspirationImage">Choose an image</label>
-                <input id="inspirationImage" type="file" accept="image/*" onChange={handleInspirationFile} />
+                <input
+                  id="inspirationImage"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleInspirationFile}
+                />
                 <small>Images must be smaller than 1.5 MB.</small>
               </div>
 
               {inspirationImage && (
                 <div className="inspiration-preview">
-                  <img src={inspirationImage} alt="Selected outfit preview" />
+                  <img
+                    src={inspirationImage}
+                    alt="Selected outfit preview"
+                  />
                 </div>
               )}
 
-              <button className="primary-button" type="submit">Save inspiration</button>
+              <button className="primary-button" type="submit">
+                Save inspiration
+              </button>
             </form>
 
             <div className="results-heading">
               <h2>Saved inspiration</h2>
-              <span>{inspirations.length} {inspirations.length === 1 ? "image" : "images"}</span>
+              <span>
+                {inspirations.length}{" "}
+                {inspirations.length === 1 ? "image" : "images"}
+              </span>
             </div>
 
             {inspirations.length === 0 ? (
               <div className="empty-state">
                 <span className="empty-icon">✧</span>
                 <h3>Your style journal starts here</h3>
-                <p>Upload an outfit image to start collecting inspiration.</p>
+                <p>
+                  Upload an outfit image to start collecting inspiration.
+                </p>
               </div>
             ) : (
               <div className="inspiration-grid">
@@ -838,13 +1184,21 @@ function App() {
                       onClick={() => setSelectedInspiration(inspiration)}
                       aria-label={`View ${inspiration.title}`}
                     >
-                      <img src={inspiration.image} alt={inspiration.title} />
+                      <img
+                        src={inspiration.image}
+                        alt={inspiration.title}
+                      />
                     </button>
 
                     <div className="inspiration-card-content">
                       <h3>{inspiration.title}</h3>
                       <p>{inspiration.date}</p>
-                      <button className="danger-button" onClick={() => deleteInspiration(inspiration.id)}>Delete</button>
+                      <button
+                        className="danger-button"
+                        onClick={() => deleteInspiration(inspiration.id)}
+                      >
+                        Delete
+                      </button>
                     </div>
                   </article>
                 ))}
@@ -852,7 +1206,11 @@ function App() {
             )}
 
             {selectedInspiration && (
-              <div className="modal-backdrop" onClick={() => setSelectedInspiration(null)} role="presentation">
+              <div
+                className="modal-backdrop"
+                onClick={() => setSelectedInspiration(null)}
+                role="presentation"
+              >
                 <div
                   className="image-modal"
                   role="dialog"
@@ -860,8 +1218,17 @@ function App() {
                   aria-label={selectedInspiration.title}
                   onClick={(event) => event.stopPropagation()}
                 >
-                  <button className="modal-close" onClick={() => setSelectedInspiration(null)} aria-label="Close image">×</button>
-                  <img src={selectedInspiration.image} alt={selectedInspiration.title} />
+                  <button
+                    className="modal-close"
+                    onClick={() => setSelectedInspiration(null)}
+                    aria-label="Close image"
+                  >
+                    ×
+                  </button>
+                  <img
+                    src={selectedInspiration.image}
+                    alt={selectedInspiration.title}
+                  />
                   <h2>{selectedInspiration.title}</h2>
                   <p>{selectedInspiration.date}</p>
                 </div>
