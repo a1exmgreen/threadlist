@@ -9,10 +9,10 @@ const simpleColours = [
 ];
 
 const categories = [
-  "Tops", "T-Shirts", "Shirts", "Polo", "Knitwear", "Hoodies",
-  "Trousers", "Jeans", "Shorts", "Jackets", "Coats", "Shoes",
-  "Trainers", "Boots", "Socks", "Hats", "Nightwear", "Bags",
-  "Accessories", "Other",
+  "Tops", "T-Shirts", "Shirts", "Polo", "Knitwear", "Jumpers",
+  "Hoodies", "Zips", "Trousers", "Jeans", "Shorts", "Jackets", 
+  "Coats", "Shoes", "Trainers", "Boots", "Socks", "Hats", 
+  "Nightwear", "Bags", "Running","Accessories", "Other",
 ];
 
 const stockOptions = ["In stock", "Low stock", "Out of stock", "Unknown"];
@@ -173,6 +173,11 @@ function App() {
     // Show up to three
     return favourites.slice(0, 3);
   }, [items]);
+
+    // Get all favourite items
+    const allFavouriteItems = useMemo(() => {
+      return items.filter((item) => item.isFavourite);
+    }, [items]);
 
   // Save wishlist items
   useEffect(() => {
@@ -483,6 +488,14 @@ function App() {
           >
             <span>♡</span>
             My wishlist
+          </button>
+
+          <button
+            className={page === "favourites" ? "active" : ""}
+            onClick={() => navigateTo("favourites")}
+          >
+            <span>★</span>
+            Favourites
           </button>
 
           <button
@@ -830,6 +843,87 @@ function App() {
                   </div>
                 )}
               </>
+            )}
+          </section>
+        )}
+
+        {/* FAVOURITES PAGE */}
+        {page === "favourites" && (
+          <section className="page-section">
+            <div className="page-header">
+              <div>
+                <p className="eyebrow">YOUR COLLECTION</p>
+                <h1>My favorites</h1>
+                <p className="page-description">
+                  All the pieces you've marked as your favourites.
+                </p>
+              </div>
+            </div>
+
+            <div className="results-heading">
+              <h2>Your favourite pieces</h2>
+              <span>
+                {allFavouriteItems.length}{" "}
+                {allFavouriteItems.length === 1 ? "item" : "items"}
+              </span>
+            </div>
+
+            {allFavouriteItems.length === 0 ? (
+              <div className="empty-state">
+                <span className="empty-icon">☆</span>
+                <h3>No favourites yet</h3>
+                <p>
+                  Select the star on any wishlist item to add it to your favourites.
+                </p>
+              </div>
+            ) : (
+              <div className="favourites-grid">
+                {allFavouriteItems.map((item) => (
+                  <article 
+                    className="favourite-card"
+                    key={item.id}
+                    onClick={() => openProductDetails(item)}
+                  >
+                    <div className="favourite-image-wrap">
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          onError={(event) => {
+                            event.currentTarget.style.display = "none";
+                          }}
+                        />
+                      ) : (
+                        <div className="image-placeholder">
+                          <span>♡</span>
+                          <small>No image added</small>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        className="favourite-star active"
+                        title="Remove from favourites"
+                        aria-label={`Remove ${item.none} from favourites`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleFavourite(item.id);
+                        }}
+                      >
+                        ★
+                      </button>
+                    </div>
+
+                    <div className="favourite-card-content">
+                      <p className="product-brand">{item.brand}</p>
+                      <h3>{item.name}</h3>
+                      <p className="product-price">
+                        {formatPrice(item.price)}
+                      </p>
+                    </div>
+                  </article>
+                ))}
+              </div>
             )}
           </section>
         )}
